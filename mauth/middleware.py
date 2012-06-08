@@ -58,7 +58,7 @@ class MultiAuth(object):
         swift_storage_url = http://127.0.0.1:8080
         #cache_timeout = 86400
         #allowed_sync_hosts = 127.0.0.1#,127.0.0.2,127.0.0.3
-        auth_extension = CSAuth
+        mauth_extension = CSAuth
         # -- add extension specific config here -- #
         cs_api_url = http://127.0.0.1:8081/client/api
         cs_admin_apikey = <admin user's apikey>
