@@ -308,9 +308,13 @@ def filter_factory(global_conf, **local_conf):
     """Returns a WSGI filter app for use with paste.deploy."""
     conf = global_conf.copy()
     conf.update(local_conf)
+    extension = conf.get('mauth_extension').strip()
+    
+    mod = __import__('mauth.extensions.'+extension, fromlist=[extension])
+    extension_cls = getattr(mod, extension)
 
-    from mauth.extensions.CSAuth import CSAuth
+    #from mauth.extensions.CSAuth import CSAuth
 
     def auth_filter(app):
-        return CSAuth(app, conf)
+        return extension_cls(app, conf)
     return auth_filter
