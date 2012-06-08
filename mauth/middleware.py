@@ -149,7 +149,7 @@ class MultiAuth(object):
                         else:
                             env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account', '')))
                 else: # hit cloudstack and populate memcached if valid request
-                    self.get_s3_identity();
+                    self.get_s3_identity(env, start_response, s3_apikey, s3_signature);
             else:
                 self.logger.debug('Invalid credential format')
                 env['swift.authorize'] = self.denied_response
@@ -188,7 +188,7 @@ class MultiAuth(object):
                                                          'x-storage-url':identity.get('account_url', None)})
                         return req.response(env, start_response)
                     else: # hit cloudstack for the details.
-                        self.get_identity()
+                        self.get_identity(req, env, start_response, auth_user, auth_key)
                 else:
                     self.logger.debug('Credentials missing')
                     env['swift.authorize'] = self.denied_response

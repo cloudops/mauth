@@ -17,8 +17,7 @@ class CSAuth(MultiAuth):
     :param conf: The dict of configuration values
     """
     def __init__(self, app, conf):
-        self.app = app
-        self.conf = conf
+        super(CSAuth, self).__init__()
         self.logger = get_logger(conf, log_route='cs_auth')
         self.cs_roles = ('cs_user_role', 'cs_global_admin_role', 'cs_domain_admin_role') # ORDER IS IMPORTANT: mapping to cs accounttype.
         self.cs_api_url = conf.get('cs_api_url').strip()
@@ -27,7 +26,7 @@ class CSAuth(MultiAuth):
         self.cs_api = CSAPI(host=self.cs_api_url, api_key=self.cs_admin_apikey, secret_key=self.cs_admin_secretkey)
         
             
-    def get_s3_identity(self):
+    def get_s3_identity(self, env, start_response, s3_apikey, s3_signature):
         user_list = self.cs_api.request(dict({'command':'listUsers'}))
         if user_list:
             for user in user_list['user']:
@@ -70,7 +69,7 @@ class CSAuth(MultiAuth):
             return self.app(env, start_response)
     
     
-    def get_identity(self):
+    def get_identity(self, req, env, start_response, auth_user, auth_key):
         user_list = self.cs_api.request(dict({'command':'listUsers', 'username':auth_user}))
         if user_list:
             for user in user_list['user']:
