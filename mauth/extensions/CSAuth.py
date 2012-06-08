@@ -15,6 +15,19 @@ from mauth.middleware import MultiAuth
 
 class CSAuth(MultiAuth):
     """
+    Manage the 'identity' to be used by swift.
+    
+    The identity is of the form:
+    identity = dict({
+        'username':<username>,
+        'account':<account>,
+        'token':<token>,
+        'account_url':<account_url>,
+        'roles':[<account>],
+        'expires':<expires>
+    })
+    Note: <variables> are just placeholders for the values you would use.
+    
     :param app: The next WSGI app in the pipeline
     :param conf: The dict of configuration values
     """
@@ -27,7 +40,10 @@ class CSAuth(MultiAuth):
         self.cs_admin_secretkey = conf.get('cs_admin_secretkey').strip()
         self.cs_api = CSAPI(host=self.cs_api_url, api_key=self.cs_admin_apikey, secret_key=self.cs_admin_secretkey)
         
-            
+    # Given an s3_apikey and an 3s_signature validate the request and store the resulting identity in the cache.
+    #  - populate 'mauth_s3_apikey/<apikey>' with the identity and secret (to be used to decode the signature).
+    #  - populate 'mauth_token/<token>' with the identity to be used on future requests.
+    # If anything goes wrong, return a 'denied_response'.
     def get_s3_identity(self, env, start_response, s3_apikey, s3_signature):
         user_list = self.cs_api.request(dict({'command':'listUsers'}))
         if user_list:
@@ -71,6 +87,10 @@ class CSAuth(MultiAuth):
             return self.app(env, start_response)
     
     
+    # Given an auth_user and auth_key validate the request and store the resulting identity in the cache.
+    #  - populate 'mauth_creds/<auth_user>/<auth_key>' with the identity.
+    #  - populate 'mauth_token/<token>' with the identity to be used on future requests.
+    # If anything goes wrong, return a 'denied_response'.
     def get_identity(self, req, env, start_response, auth_user, auth_key):
         user_list = self.cs_api.request(dict({'command':'listUsers', 'username':auth_user}))
         if user_list:
@@ -115,8 +135,9 @@ class CSAuth(MultiAuth):
             self.logger.debug('Errors: %s' % self.cs_api.errors)
             env['swift.authorize'] = self.denied_response
             return self.app(env, start_response)
-            
-            
+    
+
+    # Given a token claim, validate the request and return the 'identity'.
     def validate_token(self, token_claim):
         """
         Will take a token and validate it in cloudstack.
