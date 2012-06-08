@@ -156,15 +156,20 @@ class MultiAuth(object):
                 else: # hit cloudstack and populate memcached if valid request
                     identity, secret_key = self.get_s3_identity(env, start_response, s3_apikey, s3_signature);
                     
-                    # The swift3 middleware sets env['PATH_INFO'] to '/v1/<aws_secret_key>', we need to map it to the cloudstack account.
-                    if self.reseller_prefix != '':
-                        env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s_%s' % (self.reseller_prefix, identity.get('account')))
+                    if identity:
+                        # The swift3 middleware sets env['PATH_INFO'] to '/v1/<aws_secret_key>', we need to map it to the cloudstack account.
+                        if self.reseller_prefix != '':
+                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s_%s' % (self.reseller_prefix, identity.get('account')))
+                        else:
+                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account')))        
+                        memcache_client = cache_from_env(env)
+                        if memcache_client:
+                            memcache_client.set('mauth_s3_apikey/%s' % s3_apikey, (expires, dict({'secret':secret_key, 'identity':identity})), timeout=timeout)
+                            memcache_client.set('mauth_token/%s' % token, (expires, identity), timeout=timeout)
                     else:
-                        env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account')))        
-                    memcache_client = cache_from_env(env)
-                    if memcache_client:
-                        memcache_client.set('mauth_s3_apikey/%s' % s3_apikey, (expires, dict({'secret':secret_key, 'identity':identity})), timeout=timeout)
-                        memcache_client.set('mauth_token/%s' % token, (expires, identity), timeout=timeout)
+                        self.logger.debug('No identity for this request')
+                        env['swift.authorize'] = self.denied_response
+                        return self.app(env, start_response)
             else:
                 self.logger.debug('Invalid credential format')
                 env['swift.authorize'] = self.denied_response
@@ -205,16 +210,21 @@ class MultiAuth(object):
                     else: # hit cloudstack for the details.
                         identity = self.get_identity(env, start_response, auth_user, auth_key)
                         
-                        # add to memcache so it can be referenced later
-                        memcache_client = cache_from_env(env)
-                        if memcache_client:
-                            memcache_client.set('mauth_creds/%s/%s' % (auth_user, auth_key), (expires, identity), timeout=timeout)
-                            memcache_client.set('mauth_token/%s' % identity.get('token'), (expires, identity), timeout=timeout)
-                        req.response = Response(request=req,
-                                                headers={'x-auth-token':identity.get('token'), 
-                                                         'x-storage-token':identity.get('token'),
-                                                         'x-storage-url':identity.get('account_url')})
-                        return req.response(env, start_response)
+                        if identity:
+                            # add to memcache so it can be referenced later
+                            memcache_client = cache_from_env(env)
+                            if memcache_client:
+                                memcache_client.set('mauth_creds/%s/%s' % (auth_user, auth_key), (expires, identity), timeout=timeout)
+                                memcache_client.set('mauth_token/%s' % identity.get('token'), (expires, identity), timeout=timeout)
+                            req.response = Response(request=req,
+                                                    headers={'x-auth-token':identity.get('token'), 
+                                                             'x-storage-token':identity.get('token'),
+                                                             'x-storage-url':identity.get('account_url')})
+                            return req.response(env, start_response)
+                        else:
+                            self.logger.debug('No identity for these credentials')
+                            env['swift.authorize'] = self.denied_response
+                            return self.app(env, start_response)
                 else:
                     self.logger.debug('Credentials missing')
                     env['swift.authorize'] = self.denied_response

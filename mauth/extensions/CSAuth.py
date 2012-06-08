@@ -6,7 +6,7 @@ import json
 from urllib import quote
 from urllib2 import urlopen, HTTPError, URLError
 
-from swift.common.utils import cache_from_env, get_logger
+from swift.common.utils import get_logger
 from time import time
 
 from mauth.middleware import MultiAuth
