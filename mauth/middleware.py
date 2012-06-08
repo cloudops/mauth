@@ -22,8 +22,6 @@ from swift.common.middleware.acl import clean_acl, parse_acl, referrer_allowed
 from time import time
 from datetime import datetime
 
-import mauth.extensions
-
 class MultiAuth(object):
     """
     A swift auth middleware designed to be pluggable with existing auth systems.
@@ -311,6 +309,8 @@ def filter_factory(global_conf, **local_conf):
     conf = global_conf.copy()
     conf.update(local_conf)
 
+    from mauth.extensions.CSAuth import CSAuth
+
     def auth_filter(app):
-        return mauth.extensions.CSAuth(app, conf)
+        return CSAuth(app, conf)
     return auth_filter

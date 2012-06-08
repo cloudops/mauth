@@ -11,13 +11,15 @@ from webob import Request, Response
 from swift.common.utils import cache_from_env, get_logger
 from time import time
 
+from mauth.middleware import MultiAuth
+
 class CSAuth(MultiAuth):
     """
     :param app: The next WSGI app in the pipeline
     :param conf: The dict of configuration values
     """
     def __init__(self, app, conf):
-        super(CSAuth, self).__init__()
+        super(CSAuth, self).__init__(app, conf)
         self.logger = get_logger(conf, log_route='cs_auth')
         self.cs_roles = ('cs_user_role', 'cs_global_admin_role', 'cs_domain_admin_role') # ORDER IS IMPORTANT: mapping to cs accounttype.
         self.cs_api_url = conf.get('cs_api_url').strip()
