@@ -313,8 +313,6 @@ def filter_factory(global_conf, **local_conf):
     mod = __import__('mauth.extensions.'+extension, fromlist=[extension])
     extension_cls = getattr(mod, extension)
 
-    #from mauth.extensions.CSAuth import CSAuth
-
     def auth_filter(app):
         return extension_cls(app, conf)
     return auth_filter
