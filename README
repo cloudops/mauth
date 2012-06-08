@@ -1,0 +1,73 @@
+A swift auth middleware designed to be pluggable with existing auth systems.
+
+------
+SETUP:
+------
+File: proxy-server.conf
+Add 'mauth' (and 'cache') to your pipeline:
+
+    [pipeline:main]
+    pipeline = catch_errors cache mauth proxy-server
+
+Optional S3 Integration - To add support for s3 calls, change the above to:
+
+    [pipeline:main]
+    pipeline = catch_errors cache swift3 mauth proxy-server
+
+    [filter:swift3]
+    use = egg:swift#swift3
+
+Add account auto creation to the proxy-server.
+
+    [app:proxy-server]
+    account_autocreate = true
+
+
+Add a filter for 'mauth':
+
+    [filter:mauth]
+    use = egg:mauth#mauth
+    swift_storage_url = http://127.0.0.1:8080
+    #cache_timeout = 86400
+    #allowed_sync_hosts = 127.0.0.1#,127.0.0.2,127.0.0.3
+    auth_extension = CSAuth
+    # -- add extension specific config here -- #
+    cs_api_url = http://127.0.0.1:8081/client/api
+    cs_admin_apikey = <admin user's apikey>
+    cs_admin_secretkey = <admin user's secretkey>
+
+
+------
+USAGE:
+------
+
+Curl:
+-----
+Request for authentication
+curl -v -H "X-Auth-User: $username" -H "X-Auth-Key: $apikey" http://127.0.0.1:8080/v1.0
+returns: $auth_token and $swift_storage_url
+
+Request container list
+curl -v -X GET -H "X-Auth-Token: $auth_token" $swift_storage_url
+
+
+Swift CLI:
+----------
+Request status
+swift -v -A http://127.0.0.1:8080/v1.0 -U $username -K $apikey stat
+
+
+S3 API:
+-------
+Requires the optional step in SETUP
+(example uses the python boto lib)
+
+from boto.s3.connection import S3Connection, OrdinaryCallingFormat
+
+conn = S3Connection(aws_access_key_id=$apikey,
+                    aws_secret_access_key=$secretkey,
+                    host='127.0.0.1',
+                    port=8080,
+                    is_secure=False,
+                    calling_format=OrdinaryCallingFormat())
+bucket = conn.create_bucket('sample_bucket')

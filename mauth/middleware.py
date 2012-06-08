@@ -26,7 +26,7 @@ import mauth.extensions
 
 class MultiAuth(object):
     """
-    A swift auth system designed to be integrated with different auth systems.
+    A swift auth middleware designed to be pluggable with existing auth systems.
 
     ------
     SETUP:
@@ -55,7 +55,14 @@ class MultiAuth(object):
 
         [filter:mauth]
         use = egg:mauth#mauth
+        swift_storage_url = http://127.0.0.1:8080
+        #cache_timeout = 86400
+        #allowed_sync_hosts = 127.0.0.1#,127.0.0.2,127.0.0.3
         auth_extension = CSAuth
+        # -- add extension specific config here -- #
+        cs_api_url = http://127.0.0.1:8081/client/api
+        cs_admin_apikey = <admin user's apikey>
+        cs_admin_secretkey = <admin user's secretkey>
 
 
     ------
