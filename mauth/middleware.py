@@ -146,7 +146,6 @@ class MultiAuth(object):
                     if s3_signature == base64.b64encode(hmac.new(data.get('secret', ''), s3_token, hashlib.sha1).digest()):
                         self.logger.debug('Using cached S3 identity')
                         identity = data.get('identity', None)
-                        token = identity.get('token', None) # this just simplifies the logical flow, its not really used in this case.
                         
                         # The swift3 middleware sets env['PATH_INFO'] to '/v1/<aws_secret_key>', we need to map it to the cloudstack account.
                         if self.reseller_prefix != '':
@@ -157,15 +156,21 @@ class MultiAuth(object):
                     identity, secret_key = self.get_s3_identity(env, start_response, s3_apikey, s3_signature);
                     
                     if identity:
+                        if self.reseller_prefix != '':
+                            account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(identity.get('account', '')))
+                        else:
+                            account_url = '%s/v1/%s' % (self.storage_url, quote(identity.get('account', '')))
+                        identity['account_url'] = account_url
+                        
                         # The swift3 middleware sets env['PATH_INFO'] to '/v1/<aws_secret_key>', we need to map it to the cloudstack account.
                         if self.reseller_prefix != '':
-                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s_%s' % (self.reseller_prefix, identity.get('account')))
+                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s_%s' % (self.reseller_prefix, identity.get('account', '')))
                         else:
-                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account')))        
+                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account', '')))  
                         memcache_client = cache_from_env(env)
                         if memcache_client:
-                            memcache_client.set('mauth_s3_apikey/%s' % s3_apikey, (expires, dict({'secret':secret_key, 'identity':identity})), timeout=timeout)
-                            memcache_client.set('mauth_token/%s' % token, (expires, identity), timeout=timeout)
+                            memcache_client.set('mauth_s3_apikey/%s' % s3_apikey, (expires, dict({'secret':secret_key, 'identity':identity})), timeout=self.cache_timeout)
+                            memcache_client.set('mauth_token/%s' % token, (expires, identity), timeout=self.cache_timeout)
                     else:
                         self.logger.debug('No identity for this request')
                         env['swift.authorize'] = self.denied_response
@@ -201,25 +206,30 @@ class MultiAuth(object):
                         self.logger.debug('Using cached identity via creds')
                         identity = data
                         self.logger.debug("Using identity: %r" % (identity))
-                        token = identity.get('token', None)
                         req.response = Response(request=req,
-                                                headers={'x-auth-token':token, 
-                                                         'x-storage-token':token,
+                                                headers={'x-auth-token':identity.get('token', None), 
+                                                         'x-storage-token':identity.get('token', None),
                                                          'x-storage-url':identity.get('account_url', None)})
                         return req.response(env, start_response)
                     else: # hit cloudstack for the details.
                         identity = self.get_identity(env, start_response, auth_user, auth_key)
                         
                         if identity:
+                            if self.reseller_prefix != '':
+                                account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(identity.get('account', '')))
+                            else:
+                                account_url = '%s/v1/%s' % (self.storage_url, quote(identity.get('account', '')))
+                            identity['account_url'] = account_url
+                                
                             # add to memcache so it can be referenced later
                             memcache_client = cache_from_env(env)
                             if memcache_client:
-                                memcache_client.set('mauth_creds/%s/%s' % (auth_user, auth_key), (expires, identity), timeout=timeout)
-                                memcache_client.set('mauth_token/%s' % identity.get('token'), (expires, identity), timeout=timeout)
+                                memcache_client.set('mauth_creds/%s/%s' % (auth_user, auth_key), (expires, identity), timeout=env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
+                                memcache_client.set('mauth_token/%s' % identity.get('token', ''), (expires, identity), timeout=env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
                             req.response = Response(request=req,
-                                                    headers={'x-auth-token':identity.get('token'), 
-                                                             'x-storage-token':identity.get('token'),
-                                                             'x-storage-url':identity.get('account_url')})
+                                                    headers={'x-auth-token':identity.get('token', None), 
+                                                             'x-storage-token':identity.get('token', None),
+                                                             'x-storage-url':identity.get('account_url', None)})
                             return req.response(env, start_response)
                         else:
                             self.logger.debug('No identity for these credentials')
@@ -254,10 +264,13 @@ class MultiAuth(object):
             self.logger.debug("No cached identity, validate token via the extension.")
             identity = self.validate_token(token)
             if identity and memcache_client:
-                expires = identity['expires']
-                memcache_client.set('mauth_token/%s' % token, (expires, identity), timeout=expires - time())
-                ts = str(datetime.fromtimestamp(expires))
-                self.logger.debug('Setting memcache expiration to %s' % ts)
+                if self.reseller_prefix != '':
+                    account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(identity.get('account', '')))
+                else:
+                    account_url = '%s/v1/%s' % (self.storage_url, quote(identity.get('account', '')))
+                identity['account_url'] = account_url
+                
+                memcache_client.set('mauth_token/%s' % identity.get('token', None), (expires, identity), timeout=self.cache_timeout)
             else:  # if we didn't get identity it means there was an error.
                 self.logger.debug('No identity for this token');
                 env['swift.authorize'] = self.denied_response
