@@ -1,5 +1,3 @@
-# Copyright (c) 2011-2012 CloudOps
-#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,12 +13,8 @@
 import hmac
 import hashlib
 import base64
-import json
 
-from urllib import quote
-from urllib2 import urlopen, HTTPError, URLError
-
-from webob.exc import HTTPForbidden, HTTPNotFound, HTTPUnauthorized, HTTPBadRequest
+from webob.exc import HTTPForbidden, HTTPNotFound, HTTPUnauthorized
 from webob import Request, Response
 
 from swift.common.utils import cache_from_env, get_logger, split_path, get_remote_client
@@ -28,7 +22,7 @@ from swift.common.middleware.acl import clean_acl, parse_acl, referrer_allowed
 from time import time
 from datetime import datetime
 
-from mauth.extensions import CSAuth
+import mauth.extensions
 
 class MultiAuth(object):
     """
@@ -311,5 +305,5 @@ def filter_factory(global_conf, **local_conf):
     conf.update(local_conf)
 
     def auth_filter(app):
-        return CSAuth(app, conf)
+        return mauth.extensions.CSAuth(app, conf)
     return auth_filter

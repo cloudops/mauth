@@ -1,3 +1,16 @@
+import hmac
+import hashlib
+import base64
+import json
+
+from urllib import quote
+from urllib2 import urlopen, HTTPError, URLError
+
+from webob import Request, Response
+
+from swift.common.utils import cache_from_env, get_logger
+from time import time
+
 class CSAuth(MultiAuth):
     """
     :param app: The next WSGI app in the pipeline
