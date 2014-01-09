@@ -14,8 +14,12 @@ import hmac
 import hashlib
 import base64
 
-from webob.exc import HTTPForbidden, HTTPNotFound, HTTPUnauthorized
-from webob import Request, Response
+from urllib import quote
+
+#from webob.exc import HTTPForbidden, HTTPNotFound, HTTPUnauthorized
+#from webob import Request, Response
+from swift.common.swob import Response, Request
+from swift.common.swob import HTTPBadRequest, HTTPForbidden, HTTPNotFound, HTTPUnauthorized
 
 from swift.common.utils import cache_from_env, get_logger, split_path, get_remote_client
 from swift.common.middleware.acl import clean_acl, parse_acl, referrer_allowed
@@ -169,8 +173,8 @@ class MultiAuth(object):
                             env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account', '')))  
                         memcache_client = cache_from_env(env)
                         if memcache_client:
-                            memcache_client.set('mauth_s3_apikey/%s' % s3_apikey, (expires, dict({'secret':secret_key, 'identity':identity})), timeout=self.cache_timeout)
-                            memcache_client.set('mauth_token/%s' % token, (expires, identity), timeout=self.cache_timeout)
+                            memcache_client.set('mauth_s3_apikey/%s' % s3_apikey, (expires, dict({'secret':secret_key, 'identity':identity})), time=self.cache_timeout)
+                            memcache_client.set('mauth_token/%s' % token, (expires, identity), time=self.cache_timeout)
                     else:
                         self.logger.debug('No identity for this request')
                         env['swift.authorize'] = self.denied_response
@@ -224,8 +228,8 @@ class MultiAuth(object):
                             # add to memcache so it can be referenced later
                             memcache_client = cache_from_env(env)
                             if memcache_client:
-                                memcache_client.set('mauth_creds/%s/%s' % (auth_user, auth_key), (expires, identity), timeout=env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
-                                memcache_client.set('mauth_token/%s' % identity.get('token', ''), (expires, identity), timeout=env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
+                                memcache_client.set('mauth_creds/%s/%s' % (auth_user, auth_key), (expires, identity), time=env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
+                                memcache_client.set('mauth_token/%s' % identity.get('token', ''), (expires, identity), time=env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
                             req.response = Response(request=req,
                                                     headers={'x-auth-token':identity.get('token', None), 
                                                              'x-storage-token':identity.get('token', None),
@@ -270,7 +274,7 @@ class MultiAuth(object):
                     account_url = '%s/v1/%s' % (self.storage_url, quote(identity.get('account', '')))
                 identity['account_url'] = account_url
                 
-                memcache_client.set('mauth_token/%s' % identity.get('token', None), (expires, identity), timeout=self.cache_timeout)
+                memcache_client.set('mauth_token/%s' % identity.get('token', None), (expires, identity), time=self.cache_timeout)
             else:  # if we didn't get identity it means there was an error.
                 self.logger.debug('No identity for this token');
                 env['swift.authorize'] = self.denied_response
