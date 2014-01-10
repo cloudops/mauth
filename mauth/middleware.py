@@ -157,7 +157,13 @@ class MultiAuth(object):
                         else:
                             env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account', '')))
                 else: # hit cloudstack and populate memcached if valid request
-                    identity, secret_key = self.get_s3_identity(env, start_response, s3_apikey, s3_signature);
+                    secret_key = None
+                    try:
+                        identity, secret_key = self.get_s3_identity(env, start_response, s3_apikey, s3_signature)
+                    except MauthError as e:
+                        self.logger.debug(e.value)
+                        env['swift.authorize'] = self.denied_response
+                        return self.app(env, start_response)
                     
                     if identity:
                         if self.reseller_prefix != '':
@@ -170,7 +176,8 @@ class MultiAuth(object):
                         if self.reseller_prefix != '':
                             env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s_%s' % (self.reseller_prefix, identity.get('account', '')))
                         else:
-                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account', '')))  
+                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account', ''))) 
+
                         memcache_client = cache_from_env(env)
                         if memcache_client:
                             memcache_client.set('mauth_s3_apikey/%s' % s3_apikey, (identity.get('expires', time()), dict({'secret':secret_key, 'identity':identity})), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
@@ -216,15 +223,20 @@ class MultiAuth(object):
                                                          'x-storage-url':identity.get('account_url', None)})
                         return req.response(env, start_response)
                     else: # hit cloudstack for the details.
-                        identity = self.get_identity(env, start_response, auth_user, auth_key)
-                        self.logger.debug("Using identity: %r" % (identity))
-                        
+                        try:
+                            identity = self.get_identity(env, start_response, auth_user, auth_key)
+                        except MauthError as e:
+                            self.logger.debug(e.value)
+                            env['swift.authorize'] = self.denied_response
+                            return self.app(env, start_response)
+
                         if identity:
                             if self.reseller_prefix != '':
                                 account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(identity.get('account', '')))
                             else:
                                 account_url = '%s/v1/%s' % (self.storage_url, quote(identity.get('account', '')))
                             identity['account_url'] = account_url
+                            self.logger.debug("Using identity: %r" % (identity))
                                 
                             # add to memcache so it can be referenced later
                             memcache_client = cache_from_env(env)
@@ -267,7 +279,13 @@ class MultiAuth(object):
 
         if not identity:
             self.logger.debug("No cached identity, validate token via the extension.")
-            identity = self.validate_token(token)
+            try:
+                identity = self.validate_token(token)
+            except MauthError as e:
+                self.logger.debug(e.value)
+                env['swift.authorize'] = self.denied_response
+                return self.app(env, start_response)
+
             if identity and memcache_client:
                 if self.reseller_prefix != '':
                     account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(identity.get('account', '')))
@@ -350,6 +368,12 @@ class MultiAuth(object):
             return HTTPForbidden(request=req)
         else:
             return HTTPUnauthorized(request=req)
+
+    class MauthError(Exception):
+        def __init__(self, value):
+            self.value = value
+        def __str__(self):
+            return repr(self.value)
 
 
 
