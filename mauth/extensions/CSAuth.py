@@ -49,7 +49,7 @@ class CSAuth(MultiAuth):
                     # At this point we have found a matching user.  Authenticate them.
                     s3_token = base64.urlsafe_b64decode(env.get('HTTP_X_AUTH_TOKEN', '')).encode("utf-8")
                     if s3_signature == base64.b64encode(hmac.new(user['secretkey'], s3_token, hashlib.sha1).digest()):
-                        expires = time() + self.cache_timeout
+                        expires = time() + int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
                         token = hashlib.sha224('%s%s' % (user['secretkey'], user['apikey'])).hexdigest()
                                                 
                         self.logger.debug('Creating S3 identity')
@@ -81,10 +81,7 @@ class CSAuth(MultiAuth):
             for user in user_list['user']:
                 if user['state'] == 'enabled' and 'apikey' in user and user['apikey'] == auth_key:
                     token = hashlib.sha224('%s%s' % (user['secretkey'], user['apikey'])).hexdigest()
-                    if env.get('HTTP_X_AUTH_TTL', None):
-                        expires = time() + int(env.get('HTTP_X_AUTH_TTL'))
-                    else:
-                        expires = time() + self.cache_timeout
+                    expires = time() + int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
 
                     identity = dict({
                         'username':user['username'],
@@ -116,7 +113,7 @@ class CSAuth(MultiAuth):
         if user_list:
             for user in user_list['user']:
                 if user['state'] == 'enabled' and 'secretkey' in user and hashlib.sha224('%s%s' % (user['secretkey'], user['apikey'])).hexdigest() == token_claim:
-                    expires = time() + self.cache_timeout
+                    expires = time() + int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
                     identity = dict({
                         'username':user['username'],
                         'account':user['account'],
