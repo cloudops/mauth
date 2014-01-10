@@ -62,12 +62,12 @@ class CSAuth(MultiAuth):
                         })
                         return (identity, user['secretkey'])
                     else:
-                        raise MauthError('S3 credentials are not valid')
+                        raise self.MauthError('S3 credentials are not valid')
                         #self.logger.debug('S3 credentials are not valid')
                         #env['swift.authorize'] = self.denied_response
                         #return self.app(env, start_response)
         else:
-            raise MauthError('Errors: %s' % self.cs_api.errors)
+            raise self.MauthError('Errors: %s' % self.cs_api.errors)
             #self.logger.debug('Errors: %s' % self.cs_api.errors)
             #env['swift.authorize'] = self.denied_response
             #return self.app(env, start_response)
@@ -95,12 +95,12 @@ class CSAuth(MultiAuth):
                     self.logger.debug('Created identity: %s' % identity)
                     return identity
             # if we get here the user was not valid, so fail...
-            raise MauthError('Not a valid user and key pair')
+            raise self.MauthError('Not a valid user and key pair')
             #self.logger.debug('Not a valid user and key pair')
             #env['swift.authorize'] = self.denied_response
             #return self.app(env, start_response)
         else:
-            raise MauthError('Errors: %s' % self.cs_api.errors)
+            raise self.MauthError('Errors: %s' % self.cs_api.errors)
             #self.logger.debug('Errors: %s' % self.cs_api.errors)
             #env['swift.authorize'] = self.denied_response
             #return self.app(env, start_response)
@@ -128,7 +128,7 @@ class CSAuth(MultiAuth):
                     self.logger.debug('Using identity from cloudstack via token')
                     return identity
         else:
-            raise MauthError('Errors: %s' % self.cs_api.errors)
+            raise self.MauthError('Errors: %s' % self.cs_api.errors)
         return None # if it gets here return None.
         
         

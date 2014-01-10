@@ -160,7 +160,7 @@ class MultiAuth(object):
                     secret_key = None
                     try:
                         identity, secret_key = self.get_s3_identity(env, start_response, s3_apikey, s3_signature)
-                    except MauthError as e:
+                    except self.MauthError as e:
                         self.logger.debug(e.value)
                         env['swift.authorize'] = self.denied_response
                         return self.app(env, start_response)
@@ -225,7 +225,7 @@ class MultiAuth(object):
                     else: # hit cloudstack for the details.
                         try:
                             identity = self.get_identity(env, start_response, auth_user, auth_key)
-                        except MauthError as e:
+                        except self.MauthError as e:
                             self.logger.debug(e.value)
                             env['swift.authorize'] = self.denied_response
                             return self.app(env, start_response)
@@ -281,7 +281,7 @@ class MultiAuth(object):
             self.logger.debug("No cached identity, validate token via the extension.")
             try:
                 identity = self.validate_token(token)
-            except MauthError as e:
+            except self.MauthError as e:
                 self.logger.debug(e.value)
                 env['swift.authorize'] = self.denied_response
                 return self.app(env, start_response)
