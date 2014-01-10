@@ -173,8 +173,8 @@ class MultiAuth(object):
                             env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account', '')))  
                         memcache_client = cache_from_env(env)
                         if memcache_client:
-                            memcache_client.set('mauth_s3_apikey/%s' % s3_apikey, (identity['expires'], dict({'secret':secret_key, 'identity':identity})), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
-                            memcache_client.set('mauth_token/%s' % token, (identity['expires'], identity), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
+                            memcache_client.set('mauth_s3_apikey/%s' % s3_apikey, (identity.get('expires', time()), dict({'secret':secret_key, 'identity':identity})), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
+                            memcache_client.set('mauth_token/%s' % token, (identity.get('expires', time()), identity), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
                     else:
                         self.logger.debug('No identity for this request')
                         env['swift.authorize'] = self.denied_response
@@ -217,6 +217,7 @@ class MultiAuth(object):
                         return req.response(env, start_response)
                     else: # hit cloudstack for the details.
                         identity = self.get_identity(env, start_response, auth_user, auth_key)
+                        self.logger.debug("Using identity: %r" % (identity))
                         
                         if identity:
                             if self.reseller_prefix != '':
@@ -228,8 +229,8 @@ class MultiAuth(object):
                             # add to memcache so it can be referenced later
                             memcache_client = cache_from_env(env)
                             if memcache_client:
-                                memcache_client.set('mauth_creds/%s/%s' % (auth_user, auth_key), (identity['expires'], identity), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
-                                memcache_client.set('mauth_token/%s' % identity.get('token', ''), (identity['expires'], identity), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
+                                memcache_client.set('mauth_creds/%s/%s' % (auth_user, auth_key), (identity.get('expires', time()), identity), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
+                                memcache_client.set('mauth_token/%s' % identity.get('token', ''), (identity.get('expires', time()), identity), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
                             req.response = Response(request=req,
                                                     headers={'x-auth-token':identity.get('token', None), 
                                                              'x-storage-token':identity.get('token', None),
@@ -274,7 +275,7 @@ class MultiAuth(object):
                     account_url = '%s/v1/%s' % (self.storage_url, quote(identity.get('account', '')))
                 identity['account_url'] = account_url
                 
-                memcache_client.set('mauth_token/%s' % identity.get('token', None), (identity['expires'], identity), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
+                memcache_client.set('mauth_token/%s' % identity.get('token', None), (identity.get('expires', time()), identity), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
             else:  # if we didn't get identity it means there was an error.
                 self.logger.debug('No identity for this token');
                 env['swift.authorize'] = self.denied_response
