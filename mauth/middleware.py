@@ -80,6 +80,10 @@ class MultiAuth(object):
     Request container list
     curl -v -X GET -H "X-Auth-Token: $auth_token" $swift_storage_url
 
+    BONUS:
+    If you have the path to an object and an auth token, you can access it directly with a GET request.
+    curl "$swift_storage_url/<object_path>?X-Auth-Token=$auth_token"
+
 
     Swift CLI:
     ----------
@@ -257,9 +261,19 @@ class MultiAuth(object):
                     env['swift.authorize'] = self.denied_response
                     return self.app(env, start_response)
             else:
-                token = env.get('HTTP_X_AUTH_TOKEN', env.get('HTTP_X_STORAGE_TOKEN'))
-        
-        if not identity and not env.get('HTTP_X_AUTH_TOKEN', env.get('HTTP_X_STORAGE_TOKEN', None)):
+                token = env.get('HTTP_X_AUTH_TOKEN', env.get('HTTP_X_STORAGE_TOKEN', None))
+
+                if not token:
+                    qs = env.get('QUERY_STRING', None)
+                    if qs:
+                        parts = qs.split('&')
+                        for part in parts:
+                           param = part.split('=')
+                           if 'X-AUTH-TOKEN' in param[0].upper():
+                               self.logger.debug("Found token '%s' in query string." % param[1])
+                               token = param[1]
+
+        if not identity and not token:
             # this is an anonymous request.  pass it through for authorize to verify.
             self.logger.debug('Passing through anonymous request')
             env['swift.authorize'] = self.authorize
