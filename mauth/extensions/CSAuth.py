@@ -51,11 +51,17 @@ class CSAuth(MultiAuth):
                     if s3_signature == base64.b64encode(hmac.new(user['secretkey'], s3_token, hashlib.sha1).digest()):
                         expires = time() + int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
                         token = hashlib.sha224('%s%s' % (user['secretkey'], user['apikey'])).hexdigest()
+
+                        if self.reseller_prefix != '':
+                            account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(user['account']))
+                        else:
+                            account_url = '%s/v1/%s' % (self.storage_url, quote(user['account']))
                                                 
                         self.logger.debug('Creating S3 identity')
                         identity = dict({
                             'username':user['username'],
                             'account':user['account'],
+                            'account_url':account_url,
                             'token':token,
                             'roles':[self.cs_roles[user['accounttype']], user['account']],
                             'expires':expires
@@ -85,9 +91,15 @@ class CSAuth(MultiAuth):
                     token = hashlib.sha224('%s%s' % (user['secretkey'], user['apikey'])).hexdigest()
                     expires = time() + int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
 
+                    if self.reseller_prefix != '':
+                        account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(user['account']))
+                    else:
+                        account_url = '%s/v1/%s' % (self.storage_url, quote(user['account']))
+
                     identity = dict({
                         'username':user['username'],
                         'account':user['account'],
+                        'account_url':account_url,
                         'token':token,
                         'roles':[self.cs_roles[user['accounttype']], user['account']],
                         'expires':expires
@@ -118,9 +130,16 @@ class CSAuth(MultiAuth):
             for user in user_list['user']:
                 if user['state'] == 'enabled' and 'secretkey' in user and hashlib.sha224('%s%s' % (user['secretkey'], user['apikey'])).hexdigest() == token_claim:
                     expires = time() + int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
+
+                    if self.reseller_prefix != '':
+                        account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(user['account']))
+                    else:
+                        account_url = '%s/v1/%s' % (self.storage_url, quote(user['account']))
+
                     identity = dict({
                         'username':user['username'],
                         'account':user['account'],
+                        'account_url':account_url,
                         'token':token_claim,
                         'roles':[self.cs_roles[user['accounttype']], user['account']],
                         'expires':expires

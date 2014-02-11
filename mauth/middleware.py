@@ -170,12 +170,6 @@ class MultiAuth(object):
                         return self.app(env, start_response)
                     
                     if identity:
-                        if self.reseller_prefix != '':
-                            account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(identity.get('account', '')))
-                        else:
-                            account_url = '%s/v1/%s' % (self.storage_url, quote(identity.get('account', '')))
-                        identity['account_url'] = account_url
-                        
                         # The swift3 middleware sets env['PATH_INFO'] to '/v1/<aws_secret_key>', we need to map it to the cloudstack account.
                         if self.reseller_prefix != '':
                             env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s_%s' % (self.reseller_prefix, identity.get('account', '')))
@@ -235,11 +229,6 @@ class MultiAuth(object):
                             return self.app(env, start_response)
 
                         if identity:
-                            if self.reseller_prefix != '':
-                                account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(identity.get('account', '')))
-                            else:
-                                account_url = '%s/v1/%s' % (self.storage_url, quote(identity.get('account', '')))
-                            identity['account_url'] = account_url
                             self.logger.debug("Using identity: %r" % (identity))
                                 
                             # add to memcache so it can be referenced later
@@ -300,13 +289,7 @@ class MultiAuth(object):
                 env['swift.authorize'] = self.denied_response
                 return self.app(env, start_response)
 
-            if identity and memcache_client:
-                if self.reseller_prefix != '':
-                    account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(identity.get('account', '')))
-                else:
-                    account_url = '%s/v1/%s' % (self.storage_url, quote(identity.get('account', '')))
-                identity['account_url'] = account_url
-                
+            if identity and memcache_client:                
                 memcache_client.set('mauth_token/%s' % identity.get('token', None), (identity.get('expires', time()), identity), time=int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout)))
             else:  # if we didn't get identity it means there was an error.
                 self.logger.debug('No identity for this token');
