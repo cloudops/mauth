@@ -65,6 +65,10 @@ class MultiAuth(object):
         cs_api_url = http://127.0.0.1:8081/client/api
         cs_admin_apikey = <admin user's apikey>
         cs_admin_secretkey = <admin user's secretkey>
+        # cs_swift_root can be either 'account' or 'user'
+        # - 'account' will share swift with all users in the account (default)
+        # - 'user' will give each user their own swift space
+        #cs_swift_root = account
 
 
     ------
@@ -156,10 +160,7 @@ class MultiAuth(object):
                         identity = data.get('identity', None)
                         
                         # The swift3 middleware sets env['PATH_INFO'] to '/v1/<aws_secret_key>', we need to map it to the cloudstack account.
-                        if self.reseller_prefix != '':
-                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s_%s' % (self.reseller_prefix, identity.get('account', '')))
-                        else:
-                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account', '')))
+                        env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account_url').split('/v1/')[-1]))
                 else: # hit cloudstack and populate memcached if valid request
                     secret_key = None
                     try:
@@ -171,10 +172,7 @@ class MultiAuth(object):
                     
                     if identity:
                         # The swift3 middleware sets env['PATH_INFO'] to '/v1/<aws_secret_key>', we need to map it to the cloudstack account.
-                        if self.reseller_prefix != '':
-                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s_%s' % (self.reseller_prefix, identity.get('account', '')))
-                        else:
-                            env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account', ''))) 
+                        env['PATH_INFO'] = env['PATH_INFO'].replace(s3_apikey, '%s' % (identity.get('account_url').split('/v1/')[-1]))
 
                         memcache_client = cache_from_env(env)
                         if memcache_client:
@@ -207,7 +205,7 @@ class MultiAuth(object):
                     memcache_result = memcache_client.get('mauth_creds/%s/%s' % (auth_user, auth_key))
                     valid_cache = False
                     data = None
-                    if memcache_result and self.cache_timeout > 0 and env.get('HTTP_X_AUTH_TTL', 1) > 0:
+                    if memcache_result and self.cache_timeout > 0 and int(env.get('HTTP_X_AUTH_TTL', 1)) > 0:
                         expires, data = memcache_result
                         if expires > time():
                             valid_cache = True
@@ -319,17 +317,11 @@ class MultiAuth(object):
 
         if not _account or not _account.startswith(self.reseller_prefix):
             return self.denied_response(req)
-
-        # Remove the reseller_prefix from the account.
-        if self.reseller_prefix != '':
-            account = _account[len(self.reseller_prefix)+1:]
-        else:
-            account = _account
         
         user_roles = identity.get('roles', [])
 
         # If this user is part of this account, give access.
-        if account == identity.get('account'):
+        if _account == identity.get('account_part'):
             req.environ['swift_owner'] = True
             return None
 

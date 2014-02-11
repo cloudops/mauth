@@ -35,6 +35,7 @@ class CSAuth(MultiAuth):
         self.cs_api_url = conf.get('cs_api_url').strip()
         self.cs_admin_apikey = conf.get('cs_admin_apikey').strip()
         self.cs_admin_secretkey = conf.get('cs_admin_secretkey').strip()
+        self.cs_swift_root = conf.get('cs_swift_root', 'account').strip().lower() # defaults to 'account' if not set
         self.cs_api = CSAPI(host=self.cs_api_url, api_key=self.cs_admin_apikey, secret_key=self.cs_admin_secretkey)
         
     # Given an s3_apikey and an 3s_signature validate the request and return the (identity, secret_key).
@@ -52,16 +53,20 @@ class CSAuth(MultiAuth):
                         expires = time() + int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
                         token = hashlib.sha224('%s%s' % (user['secretkey'], user['apikey'])).hexdigest()
 
+                        account_part = ''
                         if self.reseller_prefix != '':
-                            account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(user['account']))
-                        else:
-                            account_url = '%s/v1/%s' % (self.storage_url, quote(user['account']))
+                            account_part = '%s_' % (self.reseller_prefix)
+                        account_part = account_part + quote(user['account'])
+                        if self.cs_swift_root == 'user':
+                            account_part = account_part + '_' + quote(user['username'])
+                        account_url = '%s/v1/%s' % (self.storage_url, account_part)
                                                 
                         self.logger.debug('Creating S3 identity')
                         identity = dict({
                             'username':user['username'],
                             'account':user['account'],
                             'account_url':account_url,
+                            'account_part':account_part,
                             'token':token,
                             'roles':[self.cs_roles[user['accounttype']], user['account']],
                             'expires':expires
@@ -91,15 +96,19 @@ class CSAuth(MultiAuth):
                     token = hashlib.sha224('%s%s' % (user['secretkey'], user['apikey'])).hexdigest()
                     expires = time() + int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
 
+                    account_part = ''
                     if self.reseller_prefix != '':
-                        account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(user['account']))
-                    else:
-                        account_url = '%s/v1/%s' % (self.storage_url, quote(user['account']))
+                        account_part = '%s_' % (self.reseller_prefix)
+                    account_part = account_part + quote(user['account'])
+                    if self.cs_swift_root == 'user':
+                        account_part = account_part + '_' + quote(user['username'])
+                    account_url = '%s/v1/%s' % (self.storage_url, account_part)
 
                     identity = dict({
                         'username':user['username'],
                         'account':user['account'],
                         'account_url':account_url,
+                        'account_part':account_part,
                         'token':token,
                         'roles':[self.cs_roles[user['accounttype']], user['account']],
                         'expires':expires
@@ -131,15 +140,19 @@ class CSAuth(MultiAuth):
                 if user['state'] == 'enabled' and 'secretkey' in user and hashlib.sha224('%s%s' % (user['secretkey'], user['apikey'])).hexdigest() == token_claim:
                     expires = time() + int(env.get('HTTP_X_AUTH_TTL', self.cache_timeout))
 
+                    account_part = ''
                     if self.reseller_prefix != '':
-                        account_url = '%s/v1/%s_%s' % (self.storage_url, self.reseller_prefix, quote(user['account']))
-                    else:
-                        account_url = '%s/v1/%s' % (self.storage_url, quote(user['account']))
+                        account_part = '%s_' % (self.reseller_prefix)
+                    account_part = account_part + quote(user['account'])
+                    if self.cs_swift_root == 'user':
+                        account_part = account_part + '_' + quote(user['username'])
+                    account_url = '%s/v1/%s' % (self.storage_url, account_part)
 
                     identity = dict({
                         'username':user['username'],
                         'account':user['account'],
                         'account_url':account_url,
+                        'account_part':account_part,
                         'token':token_claim,
                         'roles':[self.cs_roles[user['accounttype']], user['account']],
                         'expires':expires
